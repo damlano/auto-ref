@@ -10,7 +10,7 @@ EXPECTED_USERS = ["demi-nya"]
 EXPECTED_USERS = [user.replace(" ", "_") for user in EXPECTED_USERS]
 
 BEATMAP_IDS = [
-    (4385400, "DT"), 
+    (4385400, "HR"), 
     (4899851, "HD")
 ]
 
@@ -18,6 +18,7 @@ joined_users = []
 mutli_id = 0
 Current_Beatmap_Index = 0
 # to do
+# add json for ocnfig fo beatmaps etc
 leftduringmap = []
 mapstarttime = 0
 mapendtime = 0
@@ -44,7 +45,7 @@ def parse_pubmsg(connection, event):
     try:
         sender = event.source
         message = event.arguments[0]
-        target = str(message).split(" j")[0]
+        target = str(message).split(" joined in slot")[0]
         target = target.replace(" ", "_")
 
         if "banchobot" in str(sender).lower() and target in EXPECTED_USERS and "joined in slot" in message:
@@ -102,7 +103,7 @@ def parse_privmsg(connection, event):
                 Current_Beatmap_Index = Current_Beatmap_Index +1 # we are now passed index 0 bcuz previous was index 0 only now bcuz mods
 
             if "banchobot" in str(sender).lower() and "left the game" in message:
-                target = str(message).split(" j")[0]
+                target = str(message).split(" joined in slot")[0]
                 target = target.replace(" ", "_")
                 global joined_users
                 joined_users.remove(target)
