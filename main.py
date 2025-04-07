@@ -61,11 +61,11 @@ def parse_pubmsg(connection, event):
         if "banchobot" in str(sender).lower() and target not in EXPECTED_USERS and "joined in slot" in message:
              connection.privmsg(f'#mp_{mutli_id}', f"!mp kick {target}")
 
-        if set(joined_users) == set(EXPECTED_USERS) and "joined in slot" in message:
+        if check_game_ready(joined_users, EXPECTED_USERS, config):
             connection.privmsg(f'#mp_{mutli_id}', "Please ready up everyone automatically starting in 60 seconds")
             connection.privmsg(f'#mp_{mutli_id}', f"!mp timer {config.time_between_maps}")
 
-        if set(joined_users) == set(EXPECTED_USERS) or len(set(joined_users)) >= config.ser_ammount_to_start and "All players are ready" in message:
+        if check_game_ready(joined_users, EXPECTED_USERS, config):
             connection.privmsg(f'#mp_{mutli_id}', "!mp timer stop")
             connection.privmsg(f'#mp_{mutli_id}', "!mp start")
 
