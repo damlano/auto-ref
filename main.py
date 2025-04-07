@@ -3,6 +3,8 @@ import irc.client_aio
 from jaraco.stream import buffer
 import logging
 import config
+import aioconsole
+import time 
 
 EXPECTED_USERS = config.EXPECTED_USERS
 
@@ -21,15 +23,6 @@ mapstarttime = 0
 mapendtime = 0
 
 logname = "logging_for_osu_multiplayer_bot.txt"
-
-def check_game_ready(joined_users, expected_users, config):
-    if not all(player.ready for player in joined_users):
-        return False
-        
-    return (
-        all(user in joined_users for user in expected_users) or
-        len(set(joined_users)) >= config.ser_amount_to_start
-    )
 
 logging.basicConfig(filename=logname,
                     filemode='a',
@@ -61,11 +54,11 @@ def parse_pubmsg(connection, event):
         if "banchobot" in str(sender).lower() and target not in EXPECTED_USERS and "joined in slot" in message:
              connection.privmsg(f'#mp_{mutli_id}', f"!mp kick {target}")
 
-        if check_game_ready(joined_users, EXPECTED_USERS, config):
+        if set(joined_users) == set(EXPECTED_USERS) and "joined in slot" in message:
             connection.privmsg(f'#mp_{mutli_id}', "Please ready up everyone automatically starting in 60 seconds")
             connection.privmsg(f'#mp_{mutli_id}', f"!mp timer {config.time_between_maps}")
 
-        if check_game_ready(joined_users, EXPECTED_USERS, config):
+        if set(joined_users) == set(EXPECTED_USERS) and "All players are ready" in message:
             connection.privmsg(f'#mp_{mutli_id}', "!mp timer stop")
             connection.privmsg(f'#mp_{mutli_id}', "!mp start")
 
@@ -99,9 +92,11 @@ def parse_privmsg(connection, event):
             global mutli_id
             mutli_id = message.split('/')[-1].split()[0]
             if mutli_id != 0:
+                print(f"\nmulti id = {mutli_id}")
                 global Current_Beatmap_Index
                 connection.privmsg(f'#mp_{mutli_id}', f"!mp map {BEATMAP_IDS[Current_Beatmap_Index][0]} 0")
                 connection.privmsg(f'#mp_{mutli_id}', f"!mp timer {config.time_between_maps}")
+                time.sleep(2)
                 connection.privmsg(f'#mp_{mutli_id}', f"!mp set 0 3 {len(EXPECTED_USERS)}")
                 for i in EXPECTED_USERS:
                     connection.privmsg(f'#mp_{mutli_id}', f"!mp invite {i}")
@@ -137,6 +132,8 @@ async def main():
         )
         
         while True:
+            datatosend = await aioconsole.ainput(f"{config.user} > ")
+            server.send_raw(datatosend)
             await asyncio.sleep(1)
             
     except ConnectionRefusedError:
