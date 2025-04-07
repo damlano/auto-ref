@@ -1,18 +1,15 @@
 import asyncio
 import irc.client_aio
-import autoref
 from jaraco.stream import buffer
 import logging
-import time
-
-EXPECTED_USERS = ["demi-nya"]
+import config
+test = "test"
+EXPECTED_USERS = config.EXPECTED_USERS
 
 EXPECTED_USERS = [user.replace(" ", "_") for user in EXPECTED_USERS]
 
-BEATMAP_IDS = [
-    (4385400, "HR"), 
-    (4899851, "HD")
-]
+BEATMAP_IDS = [bm for bm in config.BEATMAP_IDS if bm[0] != 0]
+print(BEATMAP_IDS)
 
 joined_users = []
 mutli_id = 0
@@ -25,6 +22,15 @@ mapendtime = 0
 
 logname = "logging_for_osu_multiplayer_bot.txt"
 
+def check_game_ready(joined_users, expected_users, config):
+    if not all(player.ready for player in joined_users):
+        return False
+        
+    return (
+        all(user in joined_users for user in expected_users) or
+        len(set(joined_users)) >= config.ser_amount_to_start
+    )
+
 logging.basicConfig(filename=logname,
                     filemode='a',
                     format='%(asctime)s,%(msecs)03d %(name)s %(levelname)s %(message)s',
@@ -36,7 +42,7 @@ logging.getLogger("irc.client_aio").setLevel(logging.DEBUG)
 
 def on_welcome(connection, event):
     logger.info(f"Connected to {connection.server}")
-    connection.privmsg('BanchoBot', "!mp make meow")
+    connection.privmsg('BanchoBot', f"!mp make {config.multiplayer_name}")
 
 def start_multi(connection):
     connection.privmsg(f'#mp_{mutli_id}', "!mp start")
@@ -57,9 +63,9 @@ def parse_pubmsg(connection, event):
 
         if set(joined_users) == set(EXPECTED_USERS) and "joined in slot" in message:
             connection.privmsg(f'#mp_{mutli_id}', "Please ready up everyone automatically starting in 60 seconds")
-            connection.privmsg(f'#mp_{mutli_id}', "!mp timer 60")
+            connection.privmsg(f'#mp_{mutli_id}', f"!mp timer {config.time_between_maps}")
 
-        if set(joined_users) == set(EXPECTED_USERS) and "All players are ready" in message:
+        if set(joined_users) == set(EXPECTED_USERS) or len(set(joined_users)) >= config.ser_ammount_to_start and "All players are ready" in message:
             connection.privmsg(f'#mp_{mutli_id}', "!mp timer stop")
             connection.privmsg(f'#mp_{mutli_id}', "!mp start")
 
@@ -72,7 +78,7 @@ def parse_pubmsg(connection, event):
                 beatmap_id = BEATMAP_IDS[Current_Beatmap_Index][0]
                 connection.privmsg(f'#mp_{mutli_id}', f"!mp map {beatmap_id}")
                 connection.privmsg(f'#mp_{mutli_id}', f"!mp mods 1 {BEATMAP_IDS[Current_Beatmap_Index][1]}")
-                connection.privmsg(f'#mp_{mutli_id}', "!mp timer 60")
+                connection.privmsg(f'#mp_{mutli_id}', f"!mp timer {config.time_between_maps}")
                 connection.privmsg(f'#mp_{mutli_id}', "everyone ready up for next map!")
                 Current_Beatmap_Index += 1
             else:
@@ -95,7 +101,7 @@ def parse_privmsg(connection, event):
             if mutli_id != 0:
                 global Current_Beatmap_Index
                 connection.privmsg(f'#mp_{mutli_id}', f"!mp map {BEATMAP_IDS[Current_Beatmap_Index][0]} 0")
-                connection.privmsg(f'#mp_{mutli_id}', "!mp timer 60")
+                connection.privmsg(f'#mp_{mutli_id}', f"!mp timer {config.time_between_maps}")
                 connection.privmsg(f'#mp_{mutli_id}', f"!mp set 0 3 {len(EXPECTED_USERS)}")
                 for i in EXPECTED_USERS:
                     connection.privmsg(f'#mp_{mutli_id}', f"!mp invite {i}")
@@ -125,8 +131,8 @@ async def main():
         server.add_global_handler("pubmsg", parse_pubmsg)
         logger.debug("Event handlers registered")
         await asyncio.wait_for(
-            server.connect(autoref.server, autoref.port, autoref.user, 
-                         password=autoref.passwd),
+            server.connect(config.server, config.port, config.user, 
+                         password=config.password),
             timeout=10
         )
         
