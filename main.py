@@ -3,7 +3,7 @@ import irc.client_aio
 from jaraco.stream import buffer
 import logging
 import config
-test = "test"
+
 EXPECTED_USERS = config.EXPECTED_USERS
 
 EXPECTED_USERS = [user.replace(" ", "_") for user in EXPECTED_USERS]
