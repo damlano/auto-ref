@@ -29,6 +29,15 @@ logging.basicConfig(filename=logname,
                     level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
+
+logging.basicConfig(filename="scores.txt",
+                    filemode='a',
+                    format='%(asctime)s,%(msecs)03d %(name)s %(levelname)s %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S',
+                    level=logging.DEBUG)
+
+logger2 = logging.getLogger(__name__)
+
 logging.getLogger("irc.client_aio").setLevel(logging.DEBUG)
 
 def on_welcome(connection, event):
@@ -36,7 +45,9 @@ def on_welcome(connection, event):
     connection.privmsg('BanchoBot', f"!mp make {config.multiplayer_name}")
 
 def start_multi(connection):
+    connection.privmsg(f'#mp_{mutli_id}', "!mp timer stop")
     connection.privmsg(f'#mp_{mutli_id}', "!mp start")
+    connection.privmsg(f'#mp_{mutli_id}', "!mp settings")
 
 def parse_pubmsg(connection, event):
     try:
@@ -61,12 +72,10 @@ def parse_pubmsg(connection, event):
 
         if set(joined_users) == set(EXPECTED_USERS) and "All players are ready" in message and msgtarget == f"#mp_{mutli_id}":
             matchongoing = True
-            connection.privmsg(f'#mp_{mutli_id}', "!mp timer stop")
-            connection.privmsg(f'#mp_{mutli_id}', "!mp start")
-
+            start_multi(connection)
         if "banchobot" in str(sender).lower() and "Countdown finished" in message and msgtarget == f"#mp_{mutli_id}":
             matchongoing = True
-            connection.privmsg(f'#mp_{mutli_id}', "!mp start")
+            start_multi(connection)
 
 
         sender =  str(sender).split("!")[0]
@@ -81,7 +90,11 @@ def parse_pubmsg(connection, event):
                     matchongoing = False
             
         if "banchobot" in str(sender).lower() and "The match has finished" in message:
-            global Current_Beatmap_Index
+            mod_label = BEATMAP_IDS[Current_Beatmap_Index - 1][1] 
+            index_in_mod = sum(1 for i in range(Current_Beatmap_Index) if BEATMAP_IDS[i][1] == mod_label)
+
+            label = f"{mod_label if mod_label else 'NM'}{index_in_mod}"
+            logger2.log(1, f"above the scores for: {label}")
             if Current_Beatmap_Index < len(BEATMAP_IDS):
                 beatmap_id = BEATMAP_IDS[Current_Beatmap_Index][0]
                 connection.privmsg(f'#mp_{mutli_id}', f"!mp map {beatmap_id}")
@@ -106,6 +119,13 @@ def parse_privmsg(connection, event):
         message = event.arguments[0]
         logger.debug(f"parse_privmsg logging: sender: {sender} message: {message} event: {event}")
         logger.debug(f"Received PRIVMSG: {message} from {sender}")
+
+        if "banchobot" in str(sender).lower() and "finished playing" in message:
+            score = str(message).split("Score: ")[1].split(",")[0]
+            player = str(message).split(" finished playing")[0]
+            player = player.replace(" ", "_")
+            logger2.log(1, f"{player} set score: {score}")
+
 
         if "banchobot" in str(sender).lower() and "Created the tournament match https://osu.ppy.sh/mp/" in message:
             mutli_id = message.split('/')[-1].split()[0]
@@ -147,7 +167,7 @@ async def main():
                          password=config.password),
             timeout=10
         )
-        
+
         while True:
             datatosend = await aioconsole.ainput(f"{config.user} > ")
             server.send_raw(datatosend)
