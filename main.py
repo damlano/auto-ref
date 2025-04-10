@@ -6,11 +6,6 @@ import config
 import aioconsole
 import time 
 from enum import Enum
-# to do:
-# get len of joined users
-# 2025-04-10 12:42:06,926 DEBUG Received PUBMSG: Slot 1  Not Ready https://osu.ppy.sh/u/26964126 demi-nya        [NoFail, Easy, Hidden] from BanchoBot!cho@ppy.sh
-# go through every slot get the user + mods (between [])
-# set up a dictionary or enum
 
 class Freemod_Mod_Multiplier(Enum):
     NM = 1
