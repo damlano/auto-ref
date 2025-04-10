@@ -2,3 +2,4 @@ config.py
 logging_for_osu_multiplayer_bot.txt
 __pycache__/config.cpython-310.pyc
 config.json
+scores.txt
