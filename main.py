@@ -4,7 +4,6 @@ from jaraco.stream import buffer
 import logging
 import config
 import aioconsole
-import time 
 from enum import Enum
 
 class Freemod_Mod_Multiplier(Enum):
@@ -15,7 +14,6 @@ class Freemod_Mod_Multiplier(Enum):
     Hardrock_Hidden = 1
     Easy_Hidden = 2
     
-
 EXPECTED_USERS = config.EXPECTED_USERS
 
 EXPECTED_USERS = [user.replace(" ", "_") for user in EXPECTED_USERS]
@@ -54,12 +52,13 @@ def on_welcome(connection, event):
     connection.privmsg('BanchoBot', f"!mp make {config.multiplayer_name}")
 
 def start_multi(connection):
+    global Current_Beatmap_Index
     connection.privmsg(f'#mp_{mutli_id}', "!mp timer stop")
     connection.privmsg(f'#mp_{mutli_id}', "!mp start")
-    if BEATMAP_IDS[Current_Beatmap_Index][1] == "TB" or BEATMAP_IDS[Current_Beatmap_Index][1] == "Freemod":
+    if BEATMAP_IDS[Current_Beatmap_Index-1][1] == "TB" or "Freemod" in BEATMAP_IDS[Current_Beatmap_Index-1][1]: 
         connection.privmsg(f'#mp_{mutli_id}', "!mp settings")
 
-def parse_pubmsg(connection, event):
+async def parse_pubmsg(connection, event):
     try:
         global mutli_id, joined_users, Current_Beatmap_Index, aborted, votes_aborted, matchongoing
         sender = event.source
@@ -80,7 +79,7 @@ def parse_pubmsg(connection, event):
         if set(joined_users) == set(EXPECTED_USERS) and "joined in slot" in message:
             connection.privmsg(f'#mp_{mutli_id}', f"Please ready up everyone automatically starting in {config.time_between_maps} seconds")
             connection.privmsg(f'#mp_{mutli_id}', f"!mp timer {config.time_between_maps}")
-            connection.privmsg(f'#mp_{mutli_id}', f"Each map everyone gets 1 time of aborting the map if half the lobby aborts the map will be auto-aborted")
+            connection.privmsg(f'#mp_{mutli_id}', f"Each map can be aborted if 50% of the players vote to using .abort. and please if the slot if Freemod or TB enable NoFail")
 
         if set(joined_users) == set(EXPECTED_USERS) and "All players are ready" in message and msgtarget == f"#mp_{mutli_id}":
             matchongoing = True
@@ -101,6 +100,7 @@ def parse_pubmsg(connection, event):
                     matchongoing = False
             
         if "banchobot" in str(sender).lower() and "The match has finished" in message:
+            await asyncio.sleep(2)
             mod_label = BEATMAP_IDS[Current_Beatmap_Index - 1][1] 
             index_in_mod = sum(1 for i in range(Current_Beatmap_Index) if BEATMAP_IDS[i][1] == mod_label)
 
@@ -129,22 +129,23 @@ def parse_pubmsg(connection, event):
             player = str(message).split(" finished playing")[0]
             player = player.replace(" ", "_")
 
-            if BEATMAP_IDS[Current_Beatmap_Index][1] != "FreeMod" or BEATMAP_IDS[Current_Beatmap_Index][1] != "TB":
-                logger2.debug(f"{player} set score: {score}")
-            else:
-                score = score * Freemod_Mod_Multiplier.player_mods[player].value
+            if BEATMAP_IDS[Current_Beatmap_Index-1][1] == "TB" or "Freemod" in BEATMAP_IDS[Current_Beatmap_Index-1][1]: 
+                mod_key = player_mods.get(player, "NM")
+                score = int(score) * Freemod_Mod_Multiplier[mod_key].value
                 logger2.debug(f"{player} set score: {score} (this is with mods)")
+            else:
+                logger2.debug(f"{player} set score: {score}")
 
         if "banchobot" in str(sender).lower() and str(message).startswith("Slot"):
             player = message.split(" ")[6]
             mods = message.split("[")[1].strip().replace("]", "").split(",")
-
+            print(mods)
             mods = [
                 mod.strip() 
                 for i, mod in enumerate(mods) 
                 if i != 0 and mod.strip() in Freemod_Mod_Multiplier.__members__ # thanks to ai i wouldve never gotten on this
             ]
-
+            print(mods)
             if mods:
                 player_mods[player] = "_".join(mods)
             else:
@@ -154,7 +155,7 @@ def parse_pubmsg(connection, event):
         logger.error(f"Error processing privmsg: {str(e)}")
 
 
-def parse_privmsg(connection, event):
+async def parse_privmsg(connection, event):
     try:
         global mutli_id, joined_users, Current_Beatmap_Index, aborted, votes_aborted, player_mods
         sender = event.source
@@ -184,6 +185,12 @@ def parse_privmsg(connection, event):
     except Exception as e:
         logger.error(f"Error processing privmsg: {str(e)}")
 
+def wrap_async(handler):
+    def wrapped(connection, event):
+        asyncio.create_task(handler(connection, event))
+    return wrapped
+
+
 async def main():
 
     loop = asyncio.get_event_loop()
@@ -194,8 +201,8 @@ async def main():
     
     try:
         server.add_global_handler("motdstart", on_welcome)
-        server.add_global_handler("privmsg", parse_privmsg)
-        server.add_global_handler("pubmsg", parse_pubmsg)
+        server.add_global_handler("privmsg", wrap_async(parse_privmsg))
+        server.add_global_handler("pubmsg", wrap_async(parse_pubmsg))
         logger.debug("Event handlers registered")
         await asyncio.wait_for(
             server.connect(config.server, config.port, config.user, 
